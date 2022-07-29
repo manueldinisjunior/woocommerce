@@ -151,7 +151,7 @@ class OrdersTableQuery {
 		$this->args = $args;
 
 		// TODO: args to be implemented.
-		unset( $this->args['type'], $this->args['customer_note'], $this->args['name'] );
+		unset( $this->args['customer_note'], $this->args['name'] );
 
 		$this->build_query();
 		$this->run_query();
