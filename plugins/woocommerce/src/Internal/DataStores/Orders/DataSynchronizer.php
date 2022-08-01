@@ -151,12 +151,14 @@ class DataSynchronizer implements BatchProcessorInterface {
 		$orders_table                = $wpdb->prefix . 'wc_orders';
 		$order_post_types            = wc_get_order_types( 'cot-migration' );
 		$order_post_type_placeholder = implode( ', ', array_fill( 0, count( $order_post_types ), '%s' ) );
+		$operator                    = '';
 
 		if ( $this->custom_orders_table_is_authoritative() ) {
 			$missing_orders_count_sql = "
 SELECT COUNT(1) FROM $wpdb->posts posts
 INNER JOIN $orders_table orders ON posts.id=orders.id
 WHERE posts.post_type = '" . self::PLACEHOLDER_ORDER_POST_TYPE . "'";
+			$operator                 = '>';
 		} else {
 			// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- $order_post_type_placeholder is prepared.
 			$missing_orders_count_sql = $wpdb->prepare(
@@ -169,6 +171,7 @@ WHERE
   AND orders.id IS NULL",
 				$order_post_types
 			);
+			$operator                 = '<';
 		}
 
 		// phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- placeholder are provided in $order_post_type_placeholder.
@@ -182,7 +185,7 @@ SELECT(
 		JOIN $wpdb->posts posts on posts.ID = orders.id
 		WHERE
 		  posts.post_type IN ($order_post_type_placeholder)
-		  AND orders.date_updated_gmt != posts.post_modified_gmt
+		  AND orders.date_updated_gmt $operator posts.post_modified_gmt
 	) x)
 ) count",
 			$order_post_types
@@ -246,13 +249,14 @@ INNER JOIN $orders_table orders ON posts.id=orders.id
 WHERE posts.post_type = '" . self::PLACEHOLDER_ORDER_POST_TYPE . "'";
 				break;
 			case self::ID_TYPE_DIFFERENT_UPDATE_DATE:
-				$sql = $wpdb->prepare(
+				$operator = $this->custom_orders_table_is_authoritative() ? '>' : '<';
+				$sql      = $wpdb->prepare(
 					"
 SELECT orders.id FROM $orders_table orders
 JOIN $wpdb->posts posts on posts.ID = orders.id
 WHERE
   posts.post_type IN ($order_post_type_placeholders)
-  AND orders.date_updated_gmt != posts.post_modified_gmt",
+  AND orders.date_updated_gmt $operator posts.post_modified_gmt",
 					$order_post_types
 				);
 				break;
@@ -279,7 +283,13 @@ WHERE
 	 * @param array $batch Batch details.
 	 */
 	public function process_batch( array $batch ) : void {
-		$this->posts_to_cot_migrator->migrate_orders( $batch );
+		if ( $this->custom_orders_table_is_authoritative() ) {
+			foreach ( $batch as $id ) {
+				$this->data_store->backfill_post_record( wc_get_order( $id ) );
+			}
+		} else {
+			$this->posts_to_cot_migrator->migrate_orders( $batch );
+		}
 		if ( 0 === $this->get_total_pending_count() ) {
 			$this->cleanup_synchronization_state();
 		}
