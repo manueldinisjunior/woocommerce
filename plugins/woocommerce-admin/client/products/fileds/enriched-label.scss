@@ -1,0 +1,8 @@
+.woocommerce-add-product__enriched-label {
+	vertical-align: top;
+}
+.woocommerce-add-product__checkbox {
+	& > * {
+		margin-bottom: 0;
+	}
+}
