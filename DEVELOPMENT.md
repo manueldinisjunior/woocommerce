@@ -22,7 +22,7 @@ Here are some examples of the ways you can use Turborepo commands:
 
 ```bash
 # Lint and build all plugins, packages, and tools
-pnpm run lint build
+pnpm run lint && pnpm run build
 
 # Build WooCommerce Core and all of its dependencies
 pnpm run build --filter='woocommerce'
